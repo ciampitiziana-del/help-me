@@ -1,69 +1,239 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 
 export default function Home() {
+  const [area, setArea] = useState("Laboratorio");
+  const [clienti, setClienti] = useState(1);
+  const [richiestaAttiva, setRichiestaAttiva] = useState(false);
+
+  const [requestId, setRequestId] = useState<number | null>(null);
+  const [aiutoInArrivo, setAiutoInArrivo] = useState(false);
+  const [acceptedBy, setAcceptedBy] = useState("");
+
+  const getPriorita = () => {
+    if (clienti >= 5) return "URGENTE";
+    if (clienti >= 3) return "ALTA";
+    return "NORMALE";
+  };
+
+  useEffect(() => {
+    if (!requestId) return;
+
+    const channel = supabase
+      .channel(`help-request-${requestId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "help_requests",
+          filter: `id=eq.${requestId}`,
+        },
+        (payload) => {
+          console.log("Aggiornamento richiesta:", payload);
+
+          const richiesta = payload.new;
+
+          if (richiesta.status === "accepted") {
+            setAcceptedBy(richiesta.accepted_by ?? "");
+            setAiutoInArrivo(true);
+          }
+
+          if (richiesta.status === "closed") {
+            setRichiestaAttiva(false);
+            setAiutoInArrivo(false);
+            setAcceptedBy("");
+            setRequestId(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [requestId]);
+
+  const chiediAiuto = async () => {
+    const priorita =
+      clienti >= 5
+        ? "URGENT"
+        : clienti >= 3
+          ? "HIGH"
+          : "NORMAL";
+
+    const { data, error } = await supabase
+      .from("help_requests")
+      .insert([
+        {
+          area: area,
+          customers: clienti,
+          priority: priorita,
+          status: "waiting",
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Errore Supabase:", error);
+      alert("Errore durante l'invio della richiesta.");
+      return;
+    }
+
+    console.log("Richiesta creata:", data);
+
+    setRequestId(data.id);
+    setAiutoInArrivo(false);
+    setRichiestaAttiva(true);
+  };
+
+  const annullaRichiesta = async () => {
+    if (!requestId) return;
+
+    const { error } = await supabase
+      .from("help_requests")
+      .update({
+        status: "cancelled",
+      })
+      .eq("id", requestId)
+      .eq("status", "waiting");
+
+    if (error) {
+      console.error("Errore annullamento richiesta:", error);
+      alert("Non è stato possibile annullare la richiesta.");
+      return;
+    }
+
+    setRichiestaAttiva(false);
+    setRequestId(null);
+    setAiutoInArrivo(false);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <main className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden">
+        <div className="bg-blue-950 text-white p-7 text-center">
+          <h1 className="text-4xl font-bold tracking-tight">
+            HELP ME
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="text-blue-200 mt-2">
+            Assistenza colleghi
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+        <div className="p-6">
+          <label className="block text-sm font-bold text-slate-700 mb-2">
+            DOVE SERVE AIUTO?
+          </label>
+
+          <select
+            value={area}
+            onChange={(e) => setArea(e.target.value)}
+            className="w-full border-2 border-slate-200 rounded-xl p-4 text-lg bg-white mb-7"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <option>Laboratorio</option>
+            <option>Casse</option>
+            <option>Accoglienza</option>
+            <option>Magazzino</option>
+            <option>Reparto</option>
+          </select>
+
+          <p className="text-sm font-bold text-slate-700 text-center mb-4">
+            CLIENTI IN ATTESA
+          </p>
+
+          <div className="flex items-center justify-center gap-8">
+            <button
+              onClick={() =>
+                setClienti((numero) => Math.max(1, numero - 1))
+              }
+              className="w-14 h-14 rounded-full bg-slate-200 text-3xl font-bold hover:bg-slate-300"
+            >
+              −
+            </button>
+
+            <span className="text-5xl font-bold text-slate-900">
+              {clienti}
+            </span>
+
+            <button
+              onClick={() =>
+                setClienti((numero) => numero + 1)
+              }
+              className="w-14 h-14 rounded-full bg-slate-200 text-3xl font-bold hover:bg-slate-300"
+            >
+              +
+            </button>
+          </div>
+
+          <div className="text-center mt-5">
+            <span
+              className={`inline-block px-5 py-2 rounded-full font-bold ${getPriorita() === "URGENTE"
+                ? "bg-red-100 text-red-700"
+                : getPriorita() === "ALTA"
+                  ? "bg-orange-100 text-orange-700"
+                  : "bg-green-100 text-green-700"
+                }`}
+            >
+              PRIORITÀ {getPriorita()}
+            </span>
+          </div>
+
+          {!richiestaAttiva ? (
+            <button
+              onClick={chiediAiuto}
+              className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 rounded-2xl transition"
+            >
+              CHIEDI AIUTO
+            </button>
+          ) : (
+            <div className="mt-8">
+              <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-5 text-center">
+                <p className="text-green-700 font-bold text-lg">
+                  RICHIESTA INVIATA
+                </p>
+
+                <p className="text-slate-700 mt-2">
+                  {area}
+                </p>
+
+                <p className="text-slate-500">
+                  {clienti} clienti in attesa
+                </p>
+
+                {aiutoInArrivo ? (
+                  <p className="text-green-700 font-bold mt-3">
+                    {acceptedBy
+                      ? `${acceptedBy} HA PRESO IN CARICO LA TUA RICHIESTA`
+                      : "UN COLLEGA HA PRESO IN CARICO LA TUA RICHIESTA"}
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-500 mt-3">
+                    In attesa che un collega prenda in carico la richiesta...
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={annullaRichiesta}
+                className="w-full mt-4 border-2 border-red-200 text-red-600 font-bold py-4 rounded-xl hover:bg-red-50"
+              >
+                ANNULLA RICHIESTA
+              </button>
+            </div>
+          )}
+
+          {!richiestaAttiva && (
+            <p className="text-center text-slate-400 text-sm mt-5">
+              Nessuna richiesta attiva
+            </p>
+          )}
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
