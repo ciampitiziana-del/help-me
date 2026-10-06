@@ -7,6 +7,8 @@ type HelpRequest = {
   id: number;
   area: string;
   customers: number;
+  request_type: string;
+  request_detail: string | null;
   priority: "NORMAL" | "HIGH" | "URGENT";
   status: "waiting" | "accepted" | "closed" | "cancelled";
   requested_by: string | null;
@@ -156,13 +158,17 @@ export default function RequestsPage() {
               <div className="flex items-start justify-between gap-4">
 
                 <div>
-                  <div className="text-sm font-semibold text-slate-400">
-                    RICHIESTA DI AIUTO
+                  <div className="text-sm font-bold text-blue-700">
+                    {request.requested_by
+                      ? `${request.requested_by.toUpperCase()} CHIEDE AIUTO`
+                      : "RICHIESTA DI AIUTO"}
                   </div>
 
-                  <h2 className="mt-1 text-2xl font-bold text-slate-900">
-                    {request.area}
-                  </h2>
+                  {request.request_type === "Clienti" && (
+                    <h2 className="mt-1 text-2xl font-bold text-slate-900">
+                      {request.area}
+                    </h2>
+                  )}
                 </div>
 
                 <span
@@ -175,15 +181,40 @@ export default function RequestsPage() {
 
               </div>
 
-              <div className="mt-6 rounded-xl bg-slate-50 p-5">
-                <div className="text-sm font-semibold text-slate-500">
-                  CLIENTI IN ATTESA
-                </div>
+              {request.request_type === "Clienti" ? (
+                <div className="mt-6 rounded-xl bg-slate-50 p-5">
+                  <div className="text-sm font-semibold text-slate-500">
+                    CLIENTI IN ATTESA
+                  </div>
 
-                <div className="mt-1 text-4xl font-bold text-slate-900">
-                  {request.customers}
+                  <div className="mt-1 text-4xl font-bold text-slate-900">
+                    {request.customers}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="mt-6 rounded-xl bg-slate-50 p-5">
+                  <div className="text-sm font-semibold text-slate-500">
+                    TIPO DI AIUTO
+                  </div>
+
+                  <div className="mt-1 text-2xl font-bold text-slate-900">
+                    {request.request_type}
+                  </div>
+
+                  {request.request_type === "Altro" && request.request_detail && (
+                    <div className="mt-3 border-t border-slate-200 pt-3">
+                      <div className="text-sm font-semibold text-slate-500">
+                        DETTAGLIO
+                      </div>
+
+                      <div className="mt-1 text-lg text-slate-800">
+                        {request.request_detail}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
 
               <button
                 onClick={() => prendiRichiesta(request.id)}
