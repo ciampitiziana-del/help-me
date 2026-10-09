@@ -1,35 +1,25 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { timingSafeEqual } from "node:crypto";
+import { inviaNotificaAiuto } from "@/lib/sendHelpPush";
 
 export const runtime = "nodejs";
 
-const webhookSecret = process.env.WEBHOOK_SECRET;
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
-const appUrl = process.env.APP_URL;
-
 function verificaAutorizzazione(request: Request): boolean {
-  if (!webhookSecret) {
-    return false;
-  }
+  const webhookSecret = process.env.WEBHOOK_SECRET;
+
+  if (!webhookSecret) return false;
 
   const authorization = request.headers.get("authorization");
 
-  if (!authorization?.startsWith("Bearer ")) {
-    return false;
-  }
-
-  const tokenRicevuto = authorization.slice(7);
+  if (!authorization?.startsWith("Bearer ")) return false;
 
   const tokenAtteso = Buffer.from(webhookSecret);
-  const tokenFornito = Buffer.from(tokenRicevuto);
+  const tokenRicevuto = Buffer.from(authorization.slice(7));
 
-  if (tokenAtteso.length !== tokenFornito.length) {
-    return false;
-  }
+  if (tokenAtteso.length !== tokenRicevuto.length) return false;
 
-  return timingSafeEqual(tokenAtteso, tokenFornito);
+  return timingSafeEqual(tokenAtteso, tokenRicevuto);
 }
 
 export async function POST(request: Request) {
@@ -40,7 +30,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Verifica che Supabase sia configurato
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+
   if (!supabaseUrl || !supabaseSecretKey) {
     return NextResponse.json(
       { error: "Configurazione Supabase mancante" },
@@ -48,122 +40,66 @@ export async function POST(request: Request) {
     );
   }
 
-  // Crea il collegamento sicuro a Supabase
-  const supabase = createClient(supabaseUrl, supabaseSecretKey);
-
-  // Recupera le richieste che necessitano di un nuovo tentativo
-  const { data: richieste, error } = await supabase.rpc(
-    "get_pending_help_pushes",
-  );
-
-  if (error) {
-    console.error("Errore recupero notifiche:", error.message);
-
-    return NextResponse.json(
-      { error: "Impossibile recuperare le notifiche" },
-      { status: 500 },
-    );
-  }
-
-  console.log("Notifiche da recuperare:", richieste?.length ?? 0);
-
-  // Verifica l'indirizzo dell'app prima di richiamare l'API
-  if (!appUrl) {
-    return NextResponse.json(
-      { error: "APP_URL non configurato" },
-      { status: 500 },
-    );
-  }
-
-  let urlApplicazione: URL;
-
   try {
-    urlApplicazione = new URL(appUrl);
+    const supabase = createClient(supabaseUrl, supabaseSecretKey);
 
-    const ambienteLocale =
-      urlApplicazione.hostname === "localhost" ||
-      urlApplicazione.hostname === "127.0.0.1";
+    const { data: richieste, error } = await supabase.rpc(
+      "get_pending_help_pushes",
+    );
 
-    if (
-      urlApplicazione.protocol !== "https:" &&
-      !(ambienteLocale && urlApplicazione.protocol === "http:")
-    ) {
-      throw new Error("Protocollo non sicuro");
-    }
+    if (error) {
+      console.error("Errore recupero notifiche:", error.message);
 
-    if (urlApplicazione.username || urlApplicazione.password) {
-      throw new Error("Credenziali nell'URL non consentite");
-    }
-  } catch {
-    return NextResponse.json({ error: "APP_URL non valido" }, { status: 500 });
-  }
-
-  if (!richieste || richieste.length === 0) {
-    return NextResponse.json({
-      success: true,
-      message: "Nessuna notifica da recuperare",
-      richiesteDaRecuperare: 0,
-    });
-  }
-
-  // Richiama l'API di invio per ogni richiesta da recuperare
-  const risultati = await Promise.allSettled(
-    richieste.map(async (richiesta: { request_id: number }) => {
-      const risposta = await fetch(new URL("/api/send-push", appUrl), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${webhookSecret}`,
-        },
-        body: JSON.stringify({
-          type: "RETRY",
-          table: "help_requests",
-          schema: "public",
-          record: {
-            id: richiesta.request_id,
-          },
-        }),
-        cache: "no-store",
-        signal: AbortSignal.timeout(15000),
-      });
-
-      if (!risposta.ok) {
-        throw new Error(
-          `Recupero richiesta ${richiesta.request_id} fallito: HTTP ${risposta.status}`,
-        );
-      }
-
-      return richiesta.request_id;
-    }),
-  );
-
-  const recuperate = risultati.filter(
-    (risultato) => risultato.status === "fulfilled",
-  ).length;
-
-  console.log(
-    `Tentativi di recupero completati: ${recuperate} su ${richieste.length}`,
-  );
-
-  // Registra gli eventuali errori durante il recupero
-  risultati.forEach((risultato, indice) => {
-    if (risultato.status === "rejected") {
-      console.error(
-        `Errore recupero richiesta ${richieste[indice].request_id}:`,
-        risultato.reason,
+      return NextResponse.json(
+        { error: "Impossibile recuperare le notifiche" },
+        { status: 500 },
       );
     }
-  });
 
-  return NextResponse.json(
-    {
-      success: recuperate === richieste.length,
-      richiesteDaRecuperare: richieste.length,
-      tentativiCompletati: recuperate,
-      tentativiFalliti: richieste.length - recuperate,
-    },
-    {
-      status: recuperate === richieste.length ? 200 : 503,
-    },
-  );
+    if (!richieste || richieste.length === 0) {
+      return NextResponse.json({
+        success: true,
+        message: "Nessuna notifica da recuperare",
+        richiesteDaRecuperare: 0,
+      });
+    }
+
+    const risultati = await Promise.allSettled(
+      richieste.map((richiesta: { request_id: number }) =>
+        inviaNotificaAiuto(richiesta.request_id),
+      ),
+    );
+
+    const completate = risultati.filter(
+      (risultato) => risultato.status === "fulfilled",
+    ).length;
+
+    risultati.forEach((risultato, indice) => {
+      if (risultato.status === "rejected") {
+        console.error(
+          `Errore recupero richiesta ${richieste[indice].request_id}:`,
+          risultato.reason,
+        );
+      }
+    });
+
+    return NextResponse.json(
+      {
+        success: completate === richieste.length,
+        richiesteDaRecuperare: richieste.length,
+        tentativiCompletati: completate,
+        tentativiFalliti: richieste.length - completate,
+      },
+      {
+        status: completate === richieste.length ? 200 : 503,
+      },
+    );
+  } catch (error) {
+    console.error("Errore API retry-push:", error);
+
+    return NextResponse.json(
+      { error: "Errore durante il recupero delle notifiche" },
+      { status: 500 },
+    );
+  }
 }
