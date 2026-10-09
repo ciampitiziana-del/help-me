@@ -1,5 +1,6 @@
 "use client";
 
+import AttivaNotifiche from "../AttivaNotifiche";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
@@ -41,7 +42,10 @@ export default function RequestsPage() {
   }
 
   useEffect(() => {
-    loadRequests();
+    // Carica le richieste dopo l'avvio dell'effetto
+    const timer = setTimeout(() => {
+      void loadRequests();
+    }, 0);
 
     const channel = supabase
       .channel("help-requests-realtime")
@@ -53,13 +57,14 @@ export default function RequestsPage() {
           table: "help_requests",
         },
         () => {
-          loadRequests();
-        }
+          void loadRequests();
+        },
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      clearTimeout(timer);
+      void supabase.removeChannel(channel);
     };
   }, []);
 
@@ -111,12 +116,9 @@ export default function RequestsPage() {
   return (
     <main className="min-h-screen bg-slate-100 p-6">
       <div className="mx-auto max-w-3xl">
-
         <div className="mb-6 rounded-2xl bg-[#192d66] p-6 text-white shadow">
           <h1 className="text-3xl font-bold">HELP ME</h1>
-          <p className="mt-1 text-blue-100">
-            Richieste di assistenza
-          </p>
+          <p className="mt-1 text-blue-100">Richieste di assistenza</p>
         </div>
 
         {loading && (
@@ -149,14 +151,13 @@ export default function RequestsPage() {
             className="w-full border-2 border-slate-200 rounded-xl p-4 text-lg outline-none focus:border-blue-500"
           />
         </div>
+        <div className="mt-4 mb-6">
+          <AttivaNotifiche />
+        </div>
         <div className="space-y-4">
           {requests.map((request) => (
-            <div
-              key={request.id}
-              className="rounded-2xl bg-white p-6 shadow"
-            >
+            <div key={request.id} className="rounded-2xl bg-white p-6 shadow">
               <div className="flex items-start justify-between gap-4">
-
                 <div>
                   <div className="text-sm font-bold text-blue-700">
                     {request.requested_by
@@ -173,12 +174,11 @@ export default function RequestsPage() {
 
                 <span
                   className={`rounded-full px-4 py-2 text-sm font-bold ${priorityStyle(
-                    request.priority
+                    request.priority,
                   )}`}
                 >
                   {priorityLabel(request.priority)}
                 </span>
-
               </div>
 
               {request.request_type === "Clienti" ? (
@@ -201,18 +201,18 @@ export default function RequestsPage() {
                     {request.request_type}
                   </div>
 
-                  {request.request_type === "Altro" && request.request_detail && (
-                    <div className="mt-3 border-t border-slate-200 pt-3">
-                      <div className="text-sm font-semibold text-slate-500">
-                        DETTAGLIO
-                      </div>
+                  {request.request_type === "Altro" &&
+                    request.request_detail && (
+                      <div className="mt-3 border-t border-slate-200 pt-3">
+                        <div className="text-sm font-semibold text-slate-500">
+                          DETTAGLIO
+                        </div>
 
-                      <div className="mt-1 text-lg text-slate-800">
-                        {request.request_detail}
+                        <div className="mt-1 text-lg text-slate-800">
+                          {request.request_detail}
+                        </div>
                       </div>
-                    </div>
-                  )}
-
+                    )}
                 </div>
               )}
 
@@ -225,7 +225,6 @@ export default function RequestsPage() {
             </div>
           ))}
         </div>
-
       </div>
     </main>
   );
