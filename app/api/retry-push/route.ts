@@ -74,6 +74,20 @@ export async function POST(request: Request) {
       (risultato) => risultato.status === "fulfilled",
     ).length;
 
+    const errori = risultati.flatMap((risultato, indice) => {
+      if (risultato.status !== "rejected") return [];
+
+      const errore = risultato.reason;
+
+      return [
+        {
+          richiesta: richieste[indice].request_id,
+          messaggio:
+            errore instanceof Error ? errore.message : "Errore sconosciuto",
+        },
+      ];
+    });
+
     risultati.forEach((risultato, indice) => {
       if (risultato.status === "rejected") {
         console.error(
@@ -88,7 +102,7 @@ export async function POST(request: Request) {
         success: completate === richieste.length,
         richiesteDaRecuperare: richieste.length,
         tentativiCompletati: completate,
-        tentativiFalliti: richieste.length - completate,
+        errori, 
       },
       {
         status: completate === richieste.length ? 200 : 503,
