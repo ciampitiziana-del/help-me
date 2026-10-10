@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function Home() {
+  const router = useRouter();
   const [area, setArea] = useState("Laboratorio");
   const [clienti, setClienti] = useState(1);
   const [tipoAiuto, setTipoAiuto] = useState("");
@@ -141,6 +143,10 @@ export default function Home() {
       setAcceptedBy("");
       setAiutoInArrivo(false);
       setRichiestaAttiva(true);
+
+      setTimeout(() => {
+        router.push("/");
+      }, 2000);
     } catch (error) {
       console.error("Errore durante la creazione:", error);
       alert("Si è verificato un problema durante l'invio.");
@@ -180,13 +186,8 @@ export default function Home() {
           .single();
 
         if (erroreControllo) {
-          console.error(
-            "Errore controllo stato richiesta:",
-            erroreControllo,
-          );
-          alert(
-            "Non è stato possibile verificare lo stato della richiesta.",
-          );
+          console.error("Errore controllo stato richiesta:", erroreControllo);
+          alert("Non è stato possibile verificare lo stato della richiesta.");
           return;
         }
 
@@ -201,10 +202,7 @@ export default function Home() {
           return;
         }
 
-        if (
-          richiesta.status === "closed" ||
-          richiesta.status === "cancelled"
-        ) {
+        if (richiesta.status === "closed" || richiesta.status === "cancelled") {
           terminaRichiesta();
           return;
         }
@@ -231,13 +229,9 @@ export default function Home() {
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden">
         {/* INTESTAZIONE */}
         <div className="bg-blue-950 text-white p-7 text-center">
-          <h1 className="text-4xl font-bold tracking-tight">
-            HELP ME
-          </h1>
+          <h1 className="text-4xl font-bold tracking-tight">HELP ME</h1>
 
-          <p className="text-blue-200 mt-2">
-            Assistenza colleghi
-          </p>
+          <p className="text-blue-200 mt-2">Assistenza colleghi</p>
         </div>
 
         {/* NOME DEL COLLEGA */}
@@ -301,9 +295,7 @@ export default function Home() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setClienti((numero) => numero + 1)
-                  }
+                  onClick={() => setClienti((numero) => numero + 1)}
                   disabled={richiestaAttiva || invioInCorso}
                   className="w-14 h-14 rounded-full bg-slate-200 text-3xl font-bold hover:bg-slate-300 disabled:opacity-50"
                 >
@@ -353,9 +345,7 @@ export default function Home() {
 
                   <textarea
                     value={dettaglioAiuto}
-                    onChange={(e) =>
-                      setDettaglioAiuto(e.target.value)
-                    }
+                    onChange={(e) => setDettaglioAiuto(e.target.value)}
                     disabled={richiestaAttiva || invioInCorso}
                     placeholder="Descrivi brevemente di cosa hai bisogno..."
                     rows={3}
@@ -370,9 +360,7 @@ export default function Home() {
 
               <select
                 value={prioritaManuale}
-                onChange={(e) =>
-                  setPrioritaManuale(e.target.value)
-                }
+                onChange={(e) => setPrioritaManuale(e.target.value)}
                 disabled={richiestaAttiva || invioInCorso}
                 className="w-full border-2 border-slate-200 rounded-xl p-4 text-slate-900 disabled:bg-slate-50"
               >
@@ -391,9 +379,7 @@ export default function Home() {
               disabled={invioInCorso}
               className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-5 rounded-2xl transition disabled:opacity-50"
             >
-              {invioInCorso
-                ? "INVIO IN CORSO..."
-                : "CHIEDI AIUTO"}
+              {invioInCorso ? "INVIO IN CORSO..." : "CHIEDI AIUTO"}
             </button>
           ) : (
             <div className="mt-8">
@@ -403,24 +389,18 @@ export default function Home() {
                   RICHIESTA INVIATA
                 </p>
 
-                <p className="text-slate-700 mt-2">
-                  {area}
-                </p>
+                <p className="text-slate-700 mt-2">{area}</p>
 
                 {tipoAiuto ? (
                   <>
-                    <p className="text-slate-900 font-bold mt-2">
-                      {tipoAiuto}
-                    </p>
+                    <p className="text-slate-900 font-bold mt-2">{tipoAiuto}</p>
 
                     <p className="text-slate-500 mt-1">
                       Priorità {prioritaManuale.toLowerCase()}
                     </p>
                   </>
                 ) : (
-                  <p className="text-slate-500">
-                    {clienti} clienti in attesa
-                  </p>
+                  <p className="text-slate-500">{clienti} clienti in attesa</p>
                 )}
 
                 {aiutoInArrivo ? (
